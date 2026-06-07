@@ -14,15 +14,32 @@ class MainLayout extends StatefulWidget {
 
 class _MainLayoutState extends State<MainLayout> {
   int _selectedIndex = 0;
+  List<Map<String, dynamic>> _auditItems = [];
 
-  final List<Widget> _screens = [
-    const DashboardScreen(),
-    const HomeScreen(),
-    const AuditChecklistScreen(),
-  ];
+  void _handleAnalysisComplete(List<Map<String, dynamic>> items) {
+    setState(() {
+      _auditItems = items;
+      _selectedIndex = 2; // Switch to Checklist screen
+    });
+  }
+
+  void _handleAuditItemsUpdated(List<Map<String, dynamic>> items) {
+    setState(() {
+      _auditItems = items;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
+    final List<Widget> screens = [
+      const DashboardScreen(),
+      HomeScreen(onAnalysisComplete: _handleAnalysisComplete),
+      AuditChecklistScreen(
+        auditItems: _auditItems,
+        onItemsChanged: _handleAuditItemsUpdated,
+      ),
+    ];
+
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -103,7 +120,7 @@ class _MainLayoutState extends State<MainLayout> {
           ),
           const VerticalDivider(thickness: 1, width: 1, color: Color(0xFFE2E8F0)),
           Expanded(
-            child: _screens[_selectedIndex],
+            child: screens[_selectedIndex],
           ),
         ],
       ),

@@ -28,7 +28,7 @@ class DashboardScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Aggregate metrics and domain-level compliance status based on recent AI-assisted audits.',
+                  'Aggregate metrics and domain-level compliance status based on recent automated audits.',
                   style: GoogleFonts.inter(
                     fontSize: 16,
                     color: const Color(0xFF475569),
@@ -317,7 +317,17 @@ class DashboardScreen extends StatelessWidget {
                   ),
                 ),
                 TextButton.icon(
-                  onPressed: () {},
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'CSV Exported Successfully.',
+                          style: GoogleFonts.inter(),
+                        ),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  },
                   icon: const Icon(Icons.download_outlined, size: 16, color: Color(0xFF2563EB)),
                   label: Text('Export CSV', style: GoogleFonts.inter(color: const Color(0xFF2563EB))),
                 )

@@ -9,7 +9,7 @@ class ApiService {
   // The function is named 'fetchAnalysis'
   static Future<Map<String, dynamic>?> fetchAnalysis(String policyText) async {
     try {
-      debugPrint('Sending text to AI for detailed analysis...');
+      debugPrint('Sending text to analysis engine for detailed processing...');
 
       final response = await http.post(
         Uri.parse('$baseUrl/analyze'),
