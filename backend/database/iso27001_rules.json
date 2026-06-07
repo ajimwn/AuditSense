@@ -1,0 +1,12 @@
+{
+    "Control A.5: Information Security Policies": "Management must define and publish an information security policy. Policies must be reviewed regularly to ensure they remain suitable, adequate, and effective.",
+    "Control A.6: Organization of Information Security": "Roles and responsibilities for information security must be clearly defined. Mobile devices and teleworking require special security configurations.",
+    "Control A.7: Human Resource Security": "Background checks must be conducted on all candidates for employment. Employees must receive ongoing cybersecurity awareness training.",
+    "Control A.8: Asset Management": "All company laptops, phones, and physical devices must be tracked in an inventory. Information must be classified based on legal requirements and value to the organization.",
+    "Control A.9: Access Control": "Users must have secure login credentials, strong passwords, and restricted access to network systems. Two-factor authentication (MFA) is required.",
+    "Control A.10: Cryptography": "Sensitive data must be encrypted at rest and in transit. The organization must have a policy for managing cryptographic keys.",
+    "Control A.11: Physical Security": "The office building, server rooms, and hardware must be locked and protected from unauthorized physical entry using keycards or biometrics.",
+    "Control A.12: Operations Security": "The system administrators must configure firewalls, antivirus, and backups to prevent malware and cyber attacks. IT systems must be monitored for vulnerabilities.",
+    "Control A.13: Communications Security": "Network security controls must be implemented to protect information in systems and applications. Data transfers outside the organization must be secure.",
+    "Control A.18: Compliance": "The organization must comply with legal, regulatory, and contractual requirements, such as data privacy laws and intellectual property rights."
+}
