@@ -2,14 +2,36 @@ import json
 import os
 import torch
 import re
-import nltk
 from sentence_transformers import SentenceTransformer, util
 
-# Ensure NLTK punkt is available
+# NLTK is optional; use it if installed, otherwise fall back to regex sentence splitting
 try:
-    nltk.data.find('tokenizers/punkt')
-except LookupError:
-    nltk.download('punkt')
+    import nltk
+    _has_nltk = True
+except ModuleNotFoundError:
+    nltk = None
+    _has_nltk = False
+
+if _has_nltk:
+    def _ensure_nltk_sentence_tokenizer():
+        for resource in ('tokenizers/punkt', 'tokenizers/punkt_tab'):
+            try:
+                nltk.data.find(resource)
+                return
+            except LookupError:
+                continue
+
+        # Download both resources for compatibility across NLTK versions
+        try:
+            nltk.download('punkt', quiet=True)
+        except Exception:
+            pass
+        try:
+            nltk.download('punkt_tab', quiet=True)
+        except Exception:
+            pass
+
+    _ensure_nltk_sentence_tokenizer()
 
 # Check for hardware acceleration
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -56,9 +78,16 @@ def extract_policy_keywords(user_text: str):
     clean_text = re.sub(r'[^\x20-\x7E\n\r\t]+', ' ', user_text)
     clean_text = re.sub(r'\s+', ' ', clean_text).strip()
 
-    # 2. Break down into logical sentences using NLTK
-    raw_sentences = nltk.tokenize.sent_tokenize(clean_text)
-    
+    # 2. Break down into logical sentences using NLTK if available
+    try:
+        if _has_nltk:
+            raw_sentences = nltk.tokenize.sent_tokenize(clean_text)
+        else:
+            raise LookupError
+    except (LookupError, AttributeError):
+        # Fallback for environments without NLTK sentence tokenizer data
+        raw_sentences = re.split(r'(?<=[.!?])\s+', clean_text)
+
     # 3. Group sentences into chunks
     chunks = []
     current_chunk = []
