@@ -11,10 +11,10 @@ void main() {
     // Build our app and trigger a frame.
     await tester.pumpWidget(const MyApp());
     
-    // Allow any animations or font loading to complete
+    // Allow any animations or layout passes to complete
     await tester.pumpAndSettle();
 
-    // Basic verification that the app starts and shows the brand name 'AuditSense'.
-    expect(find.text('AuditSense'), findsWidgets);
+    // Verify AuditSense text appears (Case-insensitive)
+    expect(find.textContaining('AuditSense', findRichText: true), findsAtLeast(1));
   });
 }

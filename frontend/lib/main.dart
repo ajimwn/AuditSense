@@ -18,11 +18,11 @@ class MyApp extends StatelessWidget {
       title: 'AuditSense',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
-      initialRoute: '/',
+      initialRoute: '/login',
       routes: {
-        '/': (context) => const LoginScreen(),
+        '/login': (context) => const LoginScreen(),
         '/register': (context) => const RegisterScreen(),
-        '/layout': (context) => const MainLayout(),
+        '/main': (context) => const MainLayout(),
       },
     );
   }

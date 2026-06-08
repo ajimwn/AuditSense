@@ -1,16 +1,20 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:frontend/data/models/audit_item.dart';
-import 'package:frontend/core/utils/export_helper.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:fl_chart/fl_chart.dart';
+
+enum MatchFilter { all, automated, manual }
 
 class AuditChecklistScreen extends StatefulWidget {
   final List<AuditItem> auditItems;
   final ValueChanged<List<AuditItem>> onItemsChanged;
+  final String? initialFilter;
 
   const AuditChecklistScreen({
     super.key,
     required this.auditItems,
     required this.onItemsChanged,
+    this.initialFilter,
   });
 
   @override
@@ -19,11 +23,29 @@ class AuditChecklistScreen extends StatefulWidget {
 
 class _AuditChecklistScreenState extends State<AuditChecklistScreen> {
   late List<AuditItem> _auditItems;
+  String _searchQuery = '';
+  String? _statusFilter;
+  String? _applicabilityFilter;
+  MatchFilter _matchFilter = MatchFilter.all;
+  
+  // High-density selection logic
+  String? _selectedClause;
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _auditItems = List.from(widget.auditItems);
+    _statusFilter = widget.initialFilter;
+    if (_auditItems.isNotEmpty) {
+      _selectedClause = _auditItems.first.isoClause;
+    }
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   @override
@@ -31,309 +53,455 @@ class _AuditChecklistScreenState extends State<AuditChecklistScreen> {
     super.didUpdateWidget(oldWidget);
     if (widget.auditItems != oldWidget.auditItems) {
       _auditItems = List.from(widget.auditItems);
+      if (_selectedClause == null && _auditItems.isNotEmpty) {
+        _selectedClause = _auditItems.first.isoClause;
+      }
+    }
+    if (widget.initialFilter != oldWidget.initialFilter) {
+      setState(() {
+        _statusFilter = widget.initialFilter;
+      });
     }
   }
 
-  void _notifyParent() {
+  List<AuditItem> get _filteredItems {
+    return _auditItems.where((item) {
+      final matchesSearch = item.isoClause.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+          item.isoTitle.toLowerCase().contains(_searchQuery.toLowerCase());
+      final matchesStatus = _statusFilter == null || item.status == _statusFilter;
+      final matchesApplicability = _applicabilityFilter == null || item.applicability == _applicabilityFilter;
+      
+      bool matchesSource = true;
+      if (_matchFilter == MatchFilter.automated) matchesSource = item.isAutomatedMatch;
+      if (_matchFilter == MatchFilter.manual) matchesSource = !item.isAutomatedMatch;
+      
+      return matchesSearch && matchesStatus && matchesApplicability && matchesSource;
+    }).toList();
+  }
+
+  void _updateItem(String id, {String? status, String? applicability, String? justification}) {
+    setState(() {
+      final index = _auditItems.indexWhere((item) => item.id == id);
+      if (index != -1) {
+        if (status != null) _auditItems[index].status = status;
+        if (applicability != null) _auditItems[index].applicability = applicability;
+        if (justification != null) _auditItems[index].justification = justification;
+      }
+    });
     widget.onItemsChanged(_auditItems);
-  }
-
-  Map<String, List<AuditItem>> _groupedItemsByTheme() {
-    final grouped = <String, List<AuditItem>>{};
-    for (final item in _auditItems) {
-      grouped.putIfAbsent(item.theme, () => []).add(item);
-    }
-    return grouped;
-  }
-
-  void _updateStatus(int index, String status) {
-    setState(() {
-      _auditItems[index].status = status;
-    });
-    _notifyParent();
-  }
-
-  void _updateApplicability(int index, String applicability) {
-    setState(() {
-      _auditItems[index].applicability = applicability;
-    });
-    _notifyParent();
-  }
-
-  void _updateJustification(int index, String justification) {
-    setState(() {
-      _auditItems[index].justification = justification;
-    });
-    _notifyParent();
-  }
-
-  void _exportChecklist() {
-    final rows = <List<dynamic>>[
-      ['ID', 'Policy Text', 'ISO Clause', 'Theme', 'Applicability', 'Justification', 'Confidence', 'Status', 'Notes'],
-      ..._auditItems.map((item) => [
-        item.id,
-        item.policyText,
-        item.isoClause,
-        item.theme,
-        item.applicability,
-        item.justification,
-        item.confidence,
-        item.status ?? '',
-        item.notes,
-      ]),
-    ];
-
-    final csvContent = createCsvContent(rows);
-    try {
-      downloadCsv('audit_checklist_soa_report.csv', csvContent);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Audit Checklist exported successfully.'), behavior: SnackBarBehavior.floating),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Export failed.'), behavior: SnackBarBehavior.floating),
-      );
-    }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final grouped = _groupedItemsByTheme();
+    final filtered = _filteredItems;
+    final grouped = _groupedItemsByTheme(filtered);
+    
+    // Ensure we have a valid selection even after filtering
+    AuditItem? selectedItem;
+    if (filtered.isNotEmpty) {
+      selectedItem = filtered.any((i) => i.isoClause == _selectedClause)
+          ? filtered.firstWhere((i) => i.isoClause == _selectedClause)
+          : filtered.first;
+    }
 
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+          _buildUnifiedToolbar(theme),
+          Expanded(
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Compliance Checklist',
-                      style: GoogleFonts.inter(fontSize: 28, fontWeight: FontWeight.w800),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Review and justify mapping results for Statement of Applicability.',
-                      style: GoogleFonts.inter(color: theme.colorScheme.secondary, fontSize: 14),
-                    ),
-                  ],
+                // 1. LEFT NAVIGATION: Grouped list with Domain Titles
+                Container(
+                  width: 320,
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    border: Border(right: BorderSide(color: Color(0xFFE5E7EB))),
+                  ),
+                  child: filtered.isEmpty 
+                    ? const Center(child: Text('No matching controls'))
+                    : _buildGroupedList(grouped),
                 ),
-                ElevatedButton.icon(
-                  onPressed: _exportChecklist,
-                  icon: const Icon(Icons.download_rounded, size: 20),
-                  label: const Text('Export Report'),
+                
+                // 2. RIGHT WORKSPACE: Focused editing
+                Expanded(
+                  child: Container(
+                    color: const Color(0xFFF9FAFB),
+                    padding: const EdgeInsets.all(40),
+                    child: selectedItem == null 
+                      ? const Center(child: Text('Please select a control from the list'))
+                      : SingleChildScrollView(
+                          child: _buildAuditWorkspace(selectedItem, theme),
+                        ),
+                  ),
                 ),
               ],
             ),
           ),
-          Expanded(
-            child: _auditItems.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.assignment_turned_in_outlined, size: 64, color: theme.colorScheme.outline),
-                        const SizedBox(height: 16),
-                        Text('No controls mapped yet.', style: GoogleFonts.inter(color: theme.colorScheme.secondary)),
-                      ],
-                    ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 32),
-                    itemCount: grouped.keys.length,
-                    itemBuilder: (context, index) {
-                      final themeTitle = grouped.keys.elementAt(index);
-                      final items = grouped[themeTitle]!;
-                      return _buildThemeSection(themeTitle, items);
-                    },
-                  ),
-          ),
         ],
       ),
     );
   }
 
-  Widget _buildThemeSection(String title, List<AuditItem> items) {
+  Widget _buildUnifiedToolbar(ThemeData theme) {
+    final implemented = _auditItems.where((i) => i.status == 'Implemented').length;
+    final inProgress = _auditItems.where((i) => i.status == 'In Progress').length;
+    final notImplemented = _auditItems.where((i) => i.status == 'Not Implemented').length;
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 24),
-      decoration: BoxDecoration(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      decoration: const BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border(bottom: BorderSide(color: Color(0xFFE5E7EB))),
       ),
-      child: Theme(
-        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-        child: ExpansionTile(
-          initiallyExpanded: true,
-          title: Text(
-            title,
-            style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 16),
-          ),
-          childrenPadding: const EdgeInsets.all(24),
-          children: items.map((item) => _buildControlItem(item)).toList(),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildControlItem(AuditItem item) {
-    final index = _auditItems.indexOf(item);
-    final theme = Theme.of(context);
-    
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      item.isoClause,
-                      style: GoogleFonts.inter(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 15,
-                        color: theme.colorScheme.primary,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      item.policyText,
-                      style: GoogleFonts.inter(fontSize: 14, height: 1.5, color: const Color(0xFF334155)),
-                    ),
-                  ],
+          // Stats Group - Professional wording
+          _buildCompactHeaderStat('Implemented', implemented, const Color(0xFF00A36C)),
+          _buildCompactHeaderStat('In Progress', inProgress, const Color(0xFFE9A115)),
+          _buildCompactHeaderStat('Not Implemented', notImplemented, const Color(0xFFBC204B)),
+          
+          const VerticalDivider(width: 40),
+          
+          // SEARCH BAR - Expanded to fit organized space
+          Expanded(
+            child: Container(
+              height: 40,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF9FAFB),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: const Color(0xFFE5E7EB)),
+              ),
+              child: TextField(
+                controller: _searchController,
+                onChanged: (v) => setState(() => _searchQuery = v),
+                decoration: const InputDecoration(
+                  hintText: 'Search controls...',
+                  prefixIcon: Icon(Icons.search_rounded, size: 18),
+                  contentPadding: EdgeInsets.zero,
+                  border: InputBorder.none,
                 ),
               ),
-              const SizedBox(width: 24),
-              _buildConfidenceBadge(item.confidence),
-            ],
-          ),
-          const SizedBox(height: 24),
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Applicability', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
-                    const SizedBox(height: 8),
-                    DropdownButtonFormField<String>(
-                      initialValue: item.applicability,
-                      items: ['Applicable', 'Not Applicable']
-                          .map((e) => DropdownMenuItem(value: e, child: Text(e, style: const TextStyle(fontSize: 14))))
-                          .toList(),
-                      decoration: const InputDecoration(contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
-                      onChanged: (val) => _updateApplicability(index, val!),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Audit Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        _StatusChip(
-                          label: 'Compliant',
-                          selected: item.status == 'Compliant',
-                          color: const Color(0xFF10B981),
-                          onTap: () => _updateStatus(index, 'Compliant'),
-                        ),
-                        const SizedBox(width: 8),
-                        _StatusChip(
-                          label: 'Gap',
-                          selected: item.status == 'Gap',
-                          color: const Color(0xFFEF4444),
-                          onTap: () => _updateStatus(index, 'Gap'),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          const Text('Justification & Evidence', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
-          const SizedBox(height: 8),
-          TextFormField(
-            initialValue: item.justification,
-            maxLines: 2,
-            decoration: const InputDecoration(
-              hintText: 'Enter justification for compliance or exclusion...',
-              fillColor: Colors.white,
             ),
-            onChanged: (val) => _updateJustification(index, val),
+          ),
+          
+          const SizedBox(width: 24),
+          
+          // Dropdowns Group
+          _buildSmallDropdown<String?>(
+            value: _statusFilter,
+            items: [
+              const DropdownMenuItem(value: null, child: Text('All Statuses')),
+              const DropdownMenuItem(value: 'Implemented', child: Text('Implemented')),
+              const DropdownMenuItem(value: 'In Progress', child: Text('In Progress')),
+              const DropdownMenuItem(value: 'Not Implemented', child: Text('Not Implemented')),
+            ],
+            onChanged: (v) => setState(() => _statusFilter = v),
+          ),
+          const SizedBox(width: 8),
+          _buildSmallDropdown<String?>(
+            value: _applicabilityFilter,
+            items: [
+              const DropdownMenuItem(value: null, child: Text('All Applicability')),
+              const DropdownMenuItem(value: 'Applicable', child: Text('Applicable')),
+              const DropdownMenuItem(value: 'Not Applicable', child: Text('Not Applicable')),
+            ],
+            onChanged: (v) => setState(() => _applicabilityFilter = v),
+          ),
+          const SizedBox(width: 8),
+          _buildSmallDropdown<MatchFilter>(
+            value: _matchFilter,
+            items: [
+              const DropdownMenuItem(value: MatchFilter.all, child: Text('All Types')),
+              const DropdownMenuItem(value: MatchFilter.automated, child: Text('Automated')),
+              const DropdownMenuItem(value: MatchFilter.manual, child: Text('Manual')),
+            ],
+            onChanged: (v) => setState(() => _matchFilter = v!),
+          ),
+          
+          const SizedBox(width: 24),
+          
+          // PIE CHART - Maintained in toolbar
+          SizedBox(
+            width: 44, height: 44,
+            child: PieChart(
+              PieChartData(
+                sectionsSpace: 1, centerSpaceRadius: 10,
+                sections: [
+                  PieChartSectionData(value: implemented.toDouble(), color: const Color(0xFF00A36C), radius: 10, title: ''),
+                  PieChartSectionData(value: inProgress.toDouble(), color: const Color(0xFFE9A115), radius: 10, title: ''),
+                  PieChartSectionData(value: notImplemented.toDouble(), color: const Color(0xFFBC204B), radius: 10, title: ''),
+                ],
+              ),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildConfidenceBadge(int confidence) {
-    Color color = confidence > 80 ? const Color(0xFF10B981) : (confidence > 50 ? const Color(0xFFF59E0B) : const Color(0xFFEF4444));
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
-      ),
-      child: Text(
-        '$confidence% Match',
-        style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: color),
+  Widget _buildCompactHeaderStat(String label, int value, Color color) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 24),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+          const SizedBox(width: 10),
+          Text('$value', style: GoogleFonts.manrope(fontSize: 18, fontWeight: FontWeight.w800, color: const Color(0xFF0F172A))),
+          const SizedBox(width: 8),
+          Text(label.toUpperCase(), style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Colors.grey.shade600, letterSpacing: 1)),
+        ],
       ),
     );
   }
-}
 
-class _StatusChip extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final Color color;
-  final VoidCallback onTap;
-
-  const _StatusChip({required this.label, required this.selected, required this.color, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected ? color : Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: selected ? color : const Color(0xFFE2E8F0)),
+  Widget _buildSmallDropdown<T>({required T value, required List<DropdownMenuItem<T>> items, required ValueChanged<T?> onChanged}) {
+    return Container(
+      height: 40,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: Colors.white, 
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<T>(
+          value: value, items: items, onChanged: onChanged,
+          style: GoogleFonts.publicSans(fontSize: 12, fontWeight: FontWeight.w700, color: const Color(0xFF334155)),
+          icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 16),
         ),
-        child: Text(
-          label,
-          style: GoogleFonts.inter(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: selected ? Colors.white : const Color(0xFF64748B),
+      ),
+    );
+  }
+
+  Map<String, List<AuditItem>> _groupedItemsByTheme(List<AuditItem> items) {
+    final grouped = <String, List<AuditItem>>{};
+    for (final item in items) {
+      grouped.putIfAbsent(item.theme, () => []).add(item);
+    }
+    return grouped;
+  }
+
+  Widget _buildGroupedList(Map<String, List<AuditItem>> grouped) {
+    final themes = grouped.keys.toList();
+    return ListView.builder(
+      itemCount: themes.length,
+      itemBuilder: (context, index) {
+        final theme = themes[index];
+        final items = grouped[theme]!;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Domain Theme Header (Organizational, etc.)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              color: const Color(0xFFF9FAFB),
+              child: Text(
+                theme.toUpperCase(),
+                style: GoogleFonts.publicSans(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w900,
+                  color: const Color(0xFF64748B),
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ),
+            // Items in Domain
+            ...items.map((item) => _buildDenseNavItem(item, _selectedClause == item.isoClause)),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildDenseNavItem(AuditItem item, bool isSelected) {
+    Color statusColor = Colors.grey.shade300;
+    if (item.status == 'Implemented') statusColor = const Color(0xFF00A36C);
+    if (item.status == 'In Progress') statusColor = const Color(0xFFE9A115);
+    if (item.status == 'Not Implemented') statusColor = const Color(0xFFBC204B);
+
+    return InkWell(
+      onTap: () => setState(() => _selectedClause = item.isoClause),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF00338D).withValues(alpha: 0.05) : Colors.transparent,
+          border: Border(
+            bottom: const BorderSide(color: Color(0xFFF3F4F6)), 
+            left: BorderSide(color: isSelected ? const Color(0xFF00338D) : Colors.transparent, width: 4),
           ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(item.isoClause, style: TextStyle(fontWeight: FontWeight.w900, fontSize: 10, color: isSelected ? const Color(0xFF00338D) : Colors.grey.shade600)),
+                const Spacer(),
+                Container(width: 8, height: 8, decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle)),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              item.isoTitle, 
+              maxLines: 2, 
+              overflow: TextOverflow.ellipsis, 
+              style: TextStyle(
+                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600, 
+                fontSize: 12, 
+                color: isSelected ? const Color(0xFF0F172A) : const Color(0xFF4B5563),
+                height: 1.3,
+              ),
+            ),
+            if (item.isAutomatedMatch) ...[
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  const Icon(Icons.auto_awesome, size: 10, color: Color(0xFF005F9E)),
+                  const SizedBox(width: 4),
+                  Text('AUTOMATED MATCH', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w800, color: const Color(0xFF005F9E))),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAuditWorkspace(AuditItem item, ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(item.isoClause, style: GoogleFonts.manrope(fontWeight: FontWeight.w900, fontSize: 14, color: theme.colorScheme.primary, letterSpacing: 2)),
+                  const SizedBox(height: 8),
+                  Text(item.isoTitle, style: theme.textTheme.displaySmall?.copyWith(color: const Color(0xFF0F172A), fontSize: 28, fontWeight: FontWeight.w900)),
+                ],
+              ),
+            ),
+            if (item.isAutomatedMatch) _buildMatchBadge(item.confidence, item.policyText),
+          ],
+        ),
+        const SizedBox(height: 32),
+        _sectionTitle('DESCRIPTION'),
+        Text(item.fullDescription, style: theme.textTheme.bodyLarge?.copyWith(fontSize: 16, height: 1.7)),
+        const SizedBox(height: 48),
+        
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _sectionTitle('COMPLIANCE STATUS'),
+                  const SizedBox(height: 12),
+                  _buildStatusToggles(item),
+                ],
+              ),
+            ),
+            const SizedBox(width: 48),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _sectionTitle('APPLICABILITY'),
+                  const SizedBox(height: 12),
+                  _buildApplicabilityToggle(item),
+                ],
+              ),
+            ),
+          ],
+        ),
+        
+        const SizedBox(height: 48),
+        _sectionTitle('JUSTIFICATION & EVIDENCE'),
+        const SizedBox(height: 16),
+        TextFormField(
+          key: ValueKey('justification-${item.id}'),
+          initialValue: item.justification,
+          maxLines: 8,
+          style: const TextStyle(fontSize: 15),
+          decoration: InputDecoration(
+            hintText: 'Provide internal control reasoning or link to evidence documents...',
+            fillColor: Colors.white,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFD1D5DB))),
+          ),
+          onChanged: (v) => _updateItem(item.id, justification: v),
+        ),
+      ],
+    );
+  }
+
+  Widget _sectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Text(title, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Color(0xFF94A3B8), letterSpacing: 1.5)),
+    );
+  }
+
+  Widget _buildStatusToggles(AuditItem item) {
+    return Row(
+      children: [
+        _toggleBtn('Implemented', const Color(0xFF00A36C), item.status == 'Implemented', () => _updateItem(item.id, status: 'Implemented')),
+        const SizedBox(width: 8),
+        _toggleBtn('In Progress', const Color(0xFFE9A115), item.status == 'In Progress', () => _updateItem(item.id, status: 'In Progress')),
+        const SizedBox(width: 8),
+        _toggleBtn('Not Implemented', const Color(0xFFBC204B), item.status == 'Not Implemented', () => _updateItem(item.id, status: 'Not Implemented')),
+      ],
+    );
+  }
+
+  Widget _buildApplicabilityToggle(AuditItem item) {
+    return Row(
+      children: [
+        _toggleBtn('Applicable', const Color(0xFF00338D), item.applicability == 'Applicable', () => _updateItem(item.id, applicability: 'Applicable')),
+        const SizedBox(width: 8),
+        _toggleBtn('Exclude', const Color(0xFF64748B), item.applicability == 'Not Applicable', () => _updateItem(item.id, applicability: 'Not Applicable')),
+      ],
+    );
+  }
+
+  Widget _toggleBtn(String label, Color color, bool isSelected, VoidCallback onTap) {
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            color: isSelected ? color : Colors.white,
+            border: Border.all(color: isSelected ? color : const Color(0xFFD1D5DB)),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Text(label.toUpperCase(), textAlign: TextAlign.center, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: isSelected ? Colors.white : const Color(0xFF4B5563))),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMatchBadge(int confidence, String evidence) {
+    return Tooltip(
+      message: 'Source Reasoning: $evidence',
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(color: const Color(0xFF00A36C).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFF00A36C).withValues(alpha: 0.2))),
+        child: Column(
+          children: [
+            const Text('SYSTEM MATCH', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Color(0xFF00A36C))),
+            Text('$confidence%', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Color(0xFF00A36C))),
+          ],
         ),
       ),
     );

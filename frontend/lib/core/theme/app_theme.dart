@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
-  static const Color primaryBlue = Color(0xFF2563EB);
-  static const Color backgroundSlate = Color(0xFFF8FAFC);
+  static const Color kpmgBlue = Color(0xFF00338D);
+  static const Color kpmgRoyalBlue = Color(0xFF005F9E);
+  static const Color kpmgBackground = Color(0xFFF5F5F7);
   static const Color textDark = Color(0xFF0F172A);
+  static const Color textBody = Color(0xFF334155);
   static const Color textSecondary = Color(0xFF64748B);
   static const Color borderGray = Color(0xFFE2E8F0);
 
@@ -13,95 +15,115 @@ class AppTheme {
       useMaterial3: true,
       brightness: Brightness.light,
       colorScheme: ColorScheme.fromSeed(
-        seedColor: primaryBlue,
-        primary: primaryBlue,
-        secondary: textSecondary,
+        seedColor: kpmgBlue,
+        primary: kpmgBlue,
+        secondary: kpmgRoyalBlue,
         surface: Colors.white,
         onPrimary: Colors.white,
         onSurface: textDark,
         outline: borderGray,
       ),
-      scaffoldBackgroundColor: backgroundSlate,
+      scaffoldBackgroundColor: kpmgBackground,
+      
+      // UX Strategy: Manrope for Authority, Public Sans for High-Density Data
+      textTheme: GoogleFonts.publicSansTextTheme().copyWith(
+        displayLarge: GoogleFonts.manrope(
+          fontWeight: FontWeight.w800,
+          color: kpmgBlue,
+          letterSpacing: -1.5,
+        ),
+        displayMedium: GoogleFonts.manrope(
+          fontWeight: FontWeight.w700,
+          color: kpmgBlue,
+          letterSpacing: -1,
+        ),
+        displaySmall: GoogleFonts.manrope(
+          fontWeight: FontWeight.w700,
+          color: kpmgBlue,
+        ),
+        titleLarge: GoogleFonts.manrope(
+          fontWeight: FontWeight.w800,
+          color: textDark,
+        ),
+        titleMedium: GoogleFonts.publicSans(
+          fontWeight: FontWeight.w700,
+          color: textDark,
+        ),
+        bodyLarge: GoogleFonts.publicSans(
+          color: textBody,
+          fontSize: 16,
+          height: 1.6,
+        ),
+        bodyMedium: GoogleFonts.publicSans(
+          color: textBody,
+          fontSize: 14,
+          height: 1.5,
+        ),
+        labelLarge: GoogleFonts.publicSans(
+          fontWeight: FontWeight.w700,
+          fontSize: 12,
+          color: textSecondary,
+          letterSpacing: 1.1,
+        ),
+      ),
+
       appBarTheme: AppBarTheme(
         backgroundColor: Colors.white,
-        foregroundColor: textDark,
+        foregroundColor: kpmgBlue,
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
-        titleTextStyle: GoogleFonts.inter(
-          color: textDark,
+        titleTextStyle: GoogleFonts.manrope(
+          color: kpmgBlue,
           fontSize: 20,
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w800,
         ),
       ),
+      
       cardTheme: CardThemeData(
         color: Colors.white,
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(12),
           side: const BorderSide(color: borderGray),
         ),
       ),
-      dialogTheme: DialogThemeData(
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
-        ),
-      ),
+
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: primaryBlue,
+          backgroundColor: kpmgBlue,
           foregroundColor: Colors.white,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(6),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
-          textStyle: GoogleFonts.inter(
-            fontWeight: FontWeight.w600,
-            fontSize: 15,
-            letterSpacing: -0.2,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+          textStyle: GoogleFonts.publicSans(
+            fontWeight: FontWeight.w800,
+            fontSize: 14,
+            letterSpacing: 0.5,
           ),
           elevation: 0,
         ),
       ),
-      textTheme: GoogleFonts.interTextTheme().copyWith(
-        displayLarge: GoogleFonts.inter(
-          fontWeight: FontWeight.w800,
-          color: textDark,
-        ),
-        titleLarge: GoogleFonts.inter(
-          fontWeight: FontWeight.w700,
-          color: textDark,
-        ),
-      ),
+
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: Colors.white,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
           borderSide: const BorderSide(color: borderGray),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
           borderSide: const BorderSide(color: borderGray),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: primaryBlue, width: 2),
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: kpmgBlue, width: 1.5),
         ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFEF4444)),
-        ),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 18,
-        ),
-        hintStyle: GoogleFonts.inter(
-          color: const Color(0xFF94A3B8),
-          fontSize: 14,
-        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+        labelStyle: GoogleFonts.publicSans(fontWeight: FontWeight.w600, color: textSecondary),
+        hintStyle: GoogleFonts.publicSans(color: Colors.grey.shade400, fontSize: 14),
       ),
     );
   }
